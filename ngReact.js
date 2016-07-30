@@ -127,6 +127,25 @@
     });
   }
 
+  // Returns a function, that, as long as it continues to be invoked, will not
+  // be triggered. The function will be called after it stops being called for
+  // N milliseconds. If `immediate` is passed, trigger the function on the
+  // leading edge, instead of the trailing.
+  function debounce(func, wait, immediate) {
+    var timeout;
+    return function() {
+      var context = this, args = arguments;
+      var later = function() {
+        timeout = null;
+        if (!immediate) func.apply(context, args);
+      };
+      var callNow = immediate && !timeout;
+      clearTimeout(timeout);
+      timeout = setTimeout(later, wait);
+      if (callNow) func.apply(context, args);
+    };
+  };
+
   // # reactComponent
   // Directive that allows React components to be used in Angular templates.
   //
@@ -153,12 +172,18 @@
       link: function(scope, elem, attrs) {
         var reactComponent = getReactComponent(attrs.name, $injector);
 
+        var debounceInterval = attrs.debounceInterval | 0;
+
         var renderMyComponent = function() {
           var scopeProps = scope.$eval(attrs.props);
           var props = applyFunctions(scopeProps, scope);
 
           renderComponent(reactComponent, props, scope, elem);
         };
+
+        if(debounceInterval > 0){
+          renderMyComponent = debounce(renderMyComponent, debounceInterval);
+        }
 
         // If there are props, re-render when they change
         attrs.props ?
@@ -217,6 +242,14 @@
           // if propNames is not defined, fall back to use the React component's propTypes if present
           propNames = propNames || Object.keys(reactComponent.propTypes || {});
 
+          // watch each property name and trigger an update whenever something changes,
+          // to update scope.props with new values
+          var propExpressions = propNames.map(function(k){
+            return attrs[k];
+          });
+
+          var debounceInterval = attrs.debounceInterval | 0;
+          
           // for each of the properties, get their scope value and set it to scope.props
           var renderMyComponent = function() {
             var props = {};
@@ -228,11 +261,10 @@
             renderComponent(reactComponent, props, scope, elem);
           };
 
-          // watch each property name and trigger an update whenever something changes,
-          // to update scope.props with new values
-          var propExpressions = propNames.map(function(k){
-            return attrs[k];
-          });
+          if(debounceInterval > 0){
+            renderMyComponent = debounce(renderMyComponent, debounceInterval);
+          }
+
 
           watchProps(attrs.watchDepth, scope, propExpressions, renderMyComponent);
 
